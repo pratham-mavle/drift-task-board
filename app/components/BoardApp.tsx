@@ -443,6 +443,7 @@ export default function BoardApp() {
           session = data.session;
         }
         if (!session?.user) throw new Error("Anonymous sign-in did not return a guest session.");
+        await client.realtime.setAuth(session.access_token);
         const liveUserId = session.user.id;
         userIdRef.current = liveUserId;
         setUserId(liveUserId);

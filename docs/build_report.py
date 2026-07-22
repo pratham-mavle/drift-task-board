@@ -429,7 +429,7 @@ def add_fact_table(doc: Document):
         ("Live frontend", "https://drift-task-board.psmavle02.chatgpt.site"),
         ("Public repository", "https://github.com/pratham-mavle/drift-task-board"),
         ("Core stack", "React 19, TypeScript, Vinext/Vite, Supabase, dnd-kit, Lucide"),
-        ("Delivery status", "Public demo deployed; production Supabase integration ready for two public environment values"),
+        ("Delivery status", "Public Supabase deployment active; anonymous Auth, RLS persistence, and realtime configured"),
     ]
     for idx, (label, value) in enumerate(rows):
         set_cell_shading(table.cell(idx, 0), LIGHT_BLUE)
@@ -495,7 +495,7 @@ def add_main_content(doc: Document):
     add_callout(
         doc,
         "Outcome",
-        "Drift delivers a polished, team-ready Kanban experience with a complete Supabase data and security model. The public deployment is immediately usable in an explicit browser demo workspace, while the same interface switches to private cloud persistence as soon as a Supabase project URL and public anon key are configured.",
+        "Drift delivers a polished, team-ready Kanban experience backed by a live Supabase Free Tier project. The public deployment creates an anonymous guest session automatically, persists work in Postgres, enforces per-user access through RLS, and refreshes owned workspace data through Realtime.",
     )
     add_fact_table(doc)
 
@@ -504,7 +504,7 @@ def add_main_content(doc: Document):
         "Drift is a single-page task workspace designed to feel closer to Linear, Asana, and Notion than a generic todo list. The experience centers the board, keeps secondary controls quiet, and lets users move from scanning to editing without losing context. A deep charcoal rail anchors the interface; warm neutral surfaces, restrained indigo accents, compact cards, and semantic status colors create hierarchy without visual noise."
     )
     doc.add_paragraph(
-        "The frontend calls Supabase directly with a public browser key. On a configured deployment it first restores or creates an anonymous Auth session, then loads only rows allowed by Row Level Security. A repository-style runtime path also supports the clearly labeled demo workspace used by the published evaluator build; it never silently replaces a failing live Supabase connection."
+        "The frontend calls Supabase directly with its public publishable browser key. The production deployment first restores or creates an anonymous Auth session, then loads only rows allowed by Row Level Security. An explicit browser-local demo path remains available for development, but a failing live connection never silently falls back to local data."
     )
 
     doc.add_heading("Architecture and data flow", level=2)
@@ -620,8 +620,8 @@ def add_main_content(doc: Document):
     add_callout(
         doc,
         "Deployment note",
-        "No Supabase account or project credential was available in the build environment, so the public hosted URL intentionally runs the browser-local demo workspace and labels it on screen. Configure the two public values above in hosting to activate anonymous Auth, RLS persistence, and realtime sync without a code change.",
-        AMBER,
+        "The public Sites deployment is connected to a Supabase Nano Free Tier project in US East (Ohio). Hosting contains only the project URL and public publishable key. Anonymous Auth, RLS persistence, trigger-authored activity, and Realtime are active; no service-role or database credential is deployed.",
+        GREEN,
     )
 
     doc.add_heading("Verification and delivery", level=2)
@@ -630,8 +630,9 @@ def add_main_content(doc: Document):
         "ESLint completed with no errors or warnings.",
         "Production Vinext/Vite build completed successfully.",
         "Automated worker-rendering and security-contract tests passed (2 of 2).",
-        "Supabase schema execution tests covered owner defaults, task activity, relationship activity, cross-owner rejection, and User B isolation.",
-        "Public Sites deployment returned HTTP 200 with the expected Drift metadata and application shell.",
+        "The complete migration was applied successfully to the hosted Supabase project with all seven tables, triggers, grants, RLS policies, and Realtime publication entries.",
+        "A live two-session integration test passed anonymous sign-in, owner defaults, User A/User B isolation, cross-owner rejection, realtime task updates, comments, labels, assignments, status changes, activity logs, and cleanup.",
+        "The Supabase-connected public Sites deployment returned HTTP 200 with the expected Drift metadata and application shell.",
         "Public GitHub repository contains source, setup guidance, environment example, and full schema; no secret environment file or service-role key is committed.",
     ]
     for check in checks:
@@ -644,19 +645,10 @@ def add_main_content(doc: Document):
         "Client-side direct data access. It is appropriate because RLS is the security boundary. A server API or RPC becomes useful for complex atomic workflows, notifications, integrations, and rate limiting.",
         "Reordering rewrites affected positions. Fractional ranking or a database reorder RPC would reduce writes on very large columns.",
         "Plain-text comments. Mentions, rich text, attachments, notification delivery, and threaded replies are natural extensions.",
-        "Automated QA currently emphasizes compilation, linting, production rendering, and schema behavior. The next layer would exercise drag, touch, focus trapping, realtime reconnection, and two independent anonymous browser sessions end to end.",
+        "Automated QA covers compilation, linting, production rendering, schema behavior, and two independent live anonymous sessions. The next layer would drive drag, touch, focus trapping, and realtime reconnection in full browser tests.",
     ]
     for item in tradeoffs:
         add_list_item(doc, item, 77)
-
-    doc.add_heading("Handoff links", level=2)
-    p = doc.add_paragraph()
-    p.add_run("Live frontend: ").bold = True
-    add_hyperlink(p, "drift-task-board.psmavle02.chatgpt.site", "https://drift-task-board.psmavle02.chatgpt.site")
-    p = doc.add_paragraph()
-    p.add_run("Public GitHub repository: ").bold = True
-    add_hyperlink(p, "github.com/pratham-mavle/drift-task-board", "https://github.com/pratham-mavle/drift-task-board")
-
 
 def add_sql_appendix(doc: Document):
     # Named override: the full SQL reference uses landscape Letter, 0.55-inch

@@ -2,7 +2,7 @@
 
 Drift is a polished, responsive Kanban workspace built with React, TypeScript, Supabase, and dnd-kit. It pairs a calm editorial interface with the collaboration features a small team expects: private guest workspaces, assignments, comments, activity history, labels, due dates, filters, and realtime updates.
 
-- **Live demo:** https://drift-task-board.psmavle02.chatgpt.site
+- **Live Supabase app:** https://drift-task-board.psmavle02.chatgpt.site
 - **Public repository:** https://github.com/pratham-mavle/drift-task-board
 
 ## Highlights
@@ -65,15 +65,20 @@ Open `http://localhost:3000`.
 
 If the two public Supabase values are absent, Drift intentionally starts in a clearly labeled demo workspace. Demo changes persist only in that browser. Add `?demo=1` to explicitly preview that mode even when Supabase is configured. A live Supabase error never silently falls back to local data.
 
+The published Sites deployment is configured with a dedicated Supabase Free Tier project. Anonymous Auth, RLS-backed persistence, trigger-generated activity, and realtime refresh are active on the live URL.
+
 ## Validate
 
 ```bash
 npm run typecheck
 npm run lint
 npm test
+npm run test:supabase
 ```
 
 `npm test` creates a production build, renders the worker response, verifies branded metadata and loading state, and checks the presence of every RLS-protected table and core collaboration capability.
+
+`npm run test:supabase` uses two independent anonymous sessions against the configured project to verify private task visibility, cross-owner relationship rejection, realtime task updates, comments, assignments, labels, status changes, and trigger-generated activity. It requires `.env.local` and removes the product data it creates after the run.
 
 ## Database and security
 
@@ -108,6 +113,7 @@ supabase/
   schema.sql                   tables, indexes, triggers, grants, RLS, realtime
 tests/
   rendered-html.test.mjs       production rendering and security contract checks
+  supabase-integration.mjs     live anonymous-auth and RLS isolation verification
 ```
 
 ## Deployment
@@ -120,7 +126,7 @@ Build with `npm run build`, then deploy the generated Cloudflare-compatible outp
 - Drag operations update the affected card positions optimistically and then persist them. At much larger scale, fractional ranking or a dedicated reorder RPC would reduce write volume.
 - Comments are intentionally plain text. Mentions, attachments, rich text, and notification delivery are natural extensions.
 - The first version has one board per guest. A `boards` table and workspace membership model would support multiple projects.
-- Automated checks cover compilation, linting, server rendering, and the schema contract. Full end-to-end multi-browser RLS and drag testing would be the next QA layer.
+- Automated checks cover compilation, linting, server rendering, the schema contract, and two-session live RLS behavior. Full browser-driven drag, touch, and focus-trap testing would be the next QA layer.
 
 ## License
 
