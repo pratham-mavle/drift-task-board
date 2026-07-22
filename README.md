@@ -2,7 +2,7 @@
 
 Drift is a polished, responsive Kanban workspace built with React, TypeScript, Supabase, and dnd-kit. It pairs a calm editorial interface with the collaboration features a small team expects: private guest workspaces, assignments, comments, activity history, labels, due dates, filters, and realtime updates.
 
-- **Live demo:** publishing in progress
+- **Live demo:** https://drift-task-board.psmavle02.chatgpt.site
 - **Public repository:** https://github.com/pratham-mavle/drift-task-board
 
 ## Highlights
