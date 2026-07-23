@@ -22,21 +22,16 @@ import {
 } from "@dnd-kit/sortable";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  BarChart3,
-  Bell,
   Check,
   ChevronDown,
   CircleDashed,
   Filter,
-  Inbox,
   LayoutDashboard,
   LoaderCircle,
   Menu,
   Plus,
   RotateCcw,
   Search,
-  Settings,
-  Sparkles,
   Users,
   Wifi,
   WifiOff,
@@ -198,11 +193,11 @@ function getChangedFields(task: Task, values: TaskFormValues) {
 function LoadingWorkspace() {
   return (
     <main className="loading-workspace" role="status" aria-live="polite">
-      <div className="loading-mark"><Sparkles size={20} /></div>
+      <div className="loading-mark" aria-hidden="true">D</div>
       <div>
-        <span className="eyebrow">Drift workspace</span>
-        <h1>Preparing your board</h1>
-        <p>Starting a private guest session and gathering your work.</p>
+        <span className="eyebrow">Drift</span>
+        <h1>Loading your board</h1>
+        <p>Signing you in and loading tasks…</p>
       </div>
       <div className="loading-board" aria-hidden="true">
         {[0, 1, 2, 3].map((column) => (
@@ -222,8 +217,8 @@ function WorkspaceError({ message, onRetry }: { message: string; onRetry: () => 
     <main className="error-workspace">
       <div className="error-card">
         <span className="error-card__icon"><WifiOff size={22} /></span>
-        <span className="eyebrow">Workspace unavailable</span>
-        <h1>We couldn’t open your guest board.</h1>
+        <span className="eyebrow">Board unavailable</span>
+        <h1>We couldn’t load your board.</h1>
         <p>{message}</p>
         <button className="button button--primary" onClick={onRetry}>
           <RotateCcw size={15} /> Try again
@@ -239,7 +234,6 @@ function Sidebar({
   completed,
   overdue,
   mode,
-  userId,
   onAddMember,
 }: {
   members: TeamMember[];
@@ -247,31 +241,27 @@ function Sidebar({
   completed: number;
   overdue: number;
   mode: StorageMode;
-  userId: string;
   onAddMember: () => void;
 }) {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <span className="brand-mark"><span /><span /><span /></span>
+        <span className="brand-mark" aria-hidden="true">D</span>
         <span>Drift</span>
-        <span className="brand-badge">WORK</span>
       </div>
 
       <nav className="main-nav" aria-label="Workspace navigation">
         <span className="nav-label">Workspace</span>
         <button className="nav-item is-active"><LayoutDashboard size={17} /> My board <span>{total}</span></button>
-        <button className="nav-item"><Inbox size={17} /> Inbox <span className="nav-dot" /></button>
-        <button className="nav-item"><BarChart3 size={17} /> Insights</button>
       </nav>
 
       <section className="sidebar-team">
         <div className="sidebar-section-heading"><span>Team</span><button onClick={onAddMember} aria-label="Add team member"><Plus size={15} /></button></div>
         <div className="sidebar-member-list">
           {members.slice(0, 4).map((member) => (
-            <div key={member.id} className="sidebar-member"><Avatar member={member} /><span>{member.name}</span><i /></div>
+            <div key={member.id} className="sidebar-member"><Avatar member={member} /><span>{member.name}</span></div>
           ))}
-          {!members.length ? <p>No team members yet.</p> : null}
+          {!members.length ? <p>No team members.</p> : null}
         </div>
         <button className="add-member-button" onClick={onAddMember}><Plus size={14} /> Add member</button>
       </section>
@@ -284,13 +274,12 @@ function Sidebar({
           <div><strong className={overdue ? "is-alert" : ""}>{overdue}</strong><span>Overdue</span></div>
         </div>
         <div className="completion-track"><span style={{ width: total ? `${(completed / total) * 100}%` : "0%" }} /></div>
-        <p>{total ? `${Math.round((completed / total) * 100)}% of work completed` : "Ready for your first task"}</p>
+        <p>{total ? `${Math.round((completed / total) * 100)}% complete` : "No tasks yet"}</p>
       </section>
 
       <div className="sidebar-account">
         <span className="guest-avatar">G</span>
-        <div><strong>Guest workspace</strong><span>{mode === "supabase" ? `Private · ${userId.slice(0, 6)}` : "Saved on this device"}</span></div>
-        <Settings size={16} />
+        <div><strong>Guest session</strong><span>{mode === "supabase" ? "Private workspace" : "Saved on this device"}</span></div>
       </div>
     </aside>
   );
@@ -324,7 +313,7 @@ function BoardColumn({
       <header className="column-header">
         <div>
           <span className={`status-icon status-icon--${status}`}><span /></span>
-          <div><h2 id={`column-${status}-title`}>{column.title}</h2><p>{column.description}</p></div>
+          <div><h2 id={`column-${status}-title`}>{column.title}</h2></div>
         </div>
         <div className="column-header__actions">
           <span className="task-count">{tasks.length}</span>
@@ -345,9 +334,8 @@ function BoardColumn({
           ))}
           {!tasks.length ? (
             <button type="button" className="column-empty" onClick={() => onAddTask(status)}>
-              <span><Plus size={17} /></span>
-              <strong>{status === "todo" ? "Start with your first task" : `Nothing in ${column.shortTitle.toLowerCase()}`}</strong>
-              <small>{status === "todo" ? "Capture a clear next step" : "Drag work here or add a task"}</small>
+              <strong>No tasks</strong>
+              <small>Add a task or drop one here.</small>
             </button>
           ) : (
             <button type="button" className="column-add" onClick={() => onAddTask(status)}><Plus size={15} /> Add task</button>
@@ -363,7 +351,6 @@ export default function BoardApp() {
   const workspaceRef = useRef(workspace);
   const [mode, setMode] = useState<StorageMode>("demo");
   const modeRef = useRef<StorageMode>("demo");
-  const [userId, setUserId] = useState("local-demo");
   const userIdRef = useRef("local-demo");
   const [loading, setLoading] = useState(true);
   const [fatalError, setFatalError] = useState("");
@@ -422,7 +409,6 @@ export default function BoardApp() {
         if (!snapshot) snapshot = createDemoWorkspace();
         if (!cancelled) {
           commitWorkspace(snapshot, true);
-          setUserId("local-demo");
           userIdRef.current = "local-demo";
           setSyncState("synced");
           setLoading(false);
@@ -446,7 +432,6 @@ export default function BoardApp() {
         await client.realtime.setAuth(session.access_token);
         const liveUserId = session.user.id;
         userIdRef.current = liveUserId;
-        setUserId(liveUserId);
         const snapshot = await fetchLiveWorkspace(client, liveUserId);
         if (cancelled) return;
         commitWorkspace(snapshot, false);
@@ -477,10 +462,9 @@ export default function BoardApp() {
             if (status === "SUBSCRIBED") setSyncState("synced");
             if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") setSyncState("reconnecting");
           });
-      } catch (caught) {
+      } catch {
         if (!cancelled) {
-          const message = caught instanceof Error ? caught.message : "Supabase could not start the guest workspace.";
-          setFatalError(message);
+          setFatalError("Check your connection and try again.");
           setSyncState("error");
           setLoading(false);
         }
@@ -562,18 +546,21 @@ export default function BoardApp() {
     if (values.labelIds.length) joins.push(client.from("task_labels").insert(values.labelIds.map((label_id) => ({ task_id: taskId, label_id, user_id: userIdRef.current }))));
     const joinResults = await Promise.all(joins);
     const joinFailure = joinResults.find((result) => result.error);
-    if (joinFailure?.error) throw joinFailure.error;
+    if (joinFailure?.error) {
+      await client.from("tasks").delete().eq("id", taskId);
+      throw joinFailure.error;
+    }
     const task = mapTask(row, values.assigneeIds.map((team_member_id) => ({ task_id: taskId, team_member_id })), values.labelIds.map((label_id) => ({ task_id: taskId, label_id })));
     commitWorkspace({ ...workspaceRef.current, tasks: [...workspaceRef.current.tasks, task] }, false);
     await addActivity(task.id, "created", {});
-    notify("Task created and synced");
+    notify("Task created");
   }, [addActivity, commitWorkspace, notify]);
 
   const saveTask = useCallback(async (task: Task, values: TaskFormValues) => {
     const before = workspaceRef.current;
     const fields = getChangedFields(task, values);
     if (!fields.length) {
-      notify("Everything is already up to date");
+      notify("No changes to save");
       return;
     }
     const updated: Task = {
@@ -618,7 +605,7 @@ export default function BoardApp() {
       const failed = insertResults.find((result) => result.error);
       if (failed?.error) throw failed.error;
       await addActivity(task.id, action, metadata);
-      notify("Changes saved and synced");
+      notify("Changes saved");
     } catch (caught) {
       commitWorkspace(before, false);
       throw caught;
@@ -727,7 +714,7 @@ export default function BoardApp() {
       }
     } catch {
       commitWorkspace(before, false);
-      notify("Couldn’t move task — the board was restored", "error");
+      notify("Move failed. Your task is back where it was.", "error");
     }
   }, [addActivity, commitWorkspace, notify]);
 
@@ -793,6 +780,9 @@ export default function BoardApp() {
   const total = workspace.tasks.length;
   const completed = workspace.tasks.filter((task) => task.status === "done").length;
   const overdue = workspace.tasks.filter(isOverdue).length;
+  const taskSummary = total
+    ? `${total} ${total === 1 ? "task" : "tasks"} · ${completed} completed${overdue ? ` · ${overdue} overdue` : ""}`
+    : "No tasks yet";
   const selectedTask = workspace.tasks.find((task) => task.id === selectedTaskId) ?? null;
   const activeTask = workspace.tasks.find((task) => task.id === activeTaskId) ?? null;
 
@@ -807,17 +797,16 @@ export default function BoardApp() {
         completed={completed}
         overdue={overdue}
         mode={mode}
-        userId={userId}
         onAddMember={() => setMiniModal("member")}
       />
 
       <main className="workspace">
         {mode === "demo" ? (
-          <div className="demo-banner"><Sparkles size={14} /><span><strong>Demo workspace</strong> — changes are saved only in this browser. Add Supabase keys for private cloud sync.</span></div>
+          <div className="demo-banner"><span><strong>Demo mode</strong> — changes stay in this browser.</span></div>
         ) : null}
         <header className="topbar">
           <button className="mobile-menu" aria-label="Open navigation" aria-expanded={mobileNavOpen} onClick={() => setMobileNavOpen((open) => !open)}>{mobileNavOpen ? <X size={18} /> : <Menu size={18} />}</button>
-          <div className="mobile-brand"><span className="brand-mark"><span /><span /><span /></span> Drift</div>
+          <div className="mobile-brand"><span className="brand-mark" aria-hidden="true">D</span> Drift</div>
           <div className="topbar-search">
             <Search size={16} />
             <input
@@ -830,18 +819,16 @@ export default function BoardApp() {
             {query ? <button onClick={() => setQuery("")} aria-label="Clear search"><X size={14} /></button> : <kbd>⌘ K</kbd>}
           </div>
           <div className="topbar-actions">
-            <div className={`sync-status sync-status--${syncState}`} title="Workspace sync status">
+            <div className={`sync-status sync-status--${syncState}`} title="Save status">
               {syncState === "synced" ? <Wifi size={14} /> : syncState === "connecting" ? <LoaderCircle size={14} className="spin" /> : <WifiOff size={14} />}
-              <span>{mode === "demo" ? "Local" : syncState === "synced" ? "Synced" : "Reconnecting"}</span>
+              <span>{mode === "demo" ? "Saved locally" : syncState === "synced" ? "Saved" : syncState === "connecting" ? "Connecting…" : syncState === "error" ? "Sync paused" : "Reconnecting…"}</span>
             </div>
-            <button className="icon-button notification-button" aria-label="Notifications"><Bell size={17} /><span /></button>
-            <span className="guest-avatar guest-avatar--top">G</span>
           </div>
           {mobileNavOpen ? (
             <div className="mobile-nav-panel">
               <div className="mobile-nav-panel__heading"><strong>Workspace</strong><span>{total} tasks · {completed} done</span></div>
               <button className="is-active" onClick={() => setMobileNavOpen(false)}><LayoutDashboard size={16} /> My board</button>
-              <button onClick={() => { setMiniModal("member"); setMobileNavOpen(false); }}><Users size={16} /> Add team member</button>
+              <button onClick={() => { setMiniModal("member"); setMobileNavOpen(false); }}><Users size={16} /> Add member</button>
               <div className="mobile-nav-panel__team"><span>Team</span><AvatarStack members={workspace.members} limit={4} /></div>
             </div>
           ) : null}
@@ -850,12 +837,10 @@ export default function BoardApp() {
         <div className="workspace-content">
           <section className="board-heading">
             <div>
-              <div className="breadcrumb"><span>Workspace</span><span>/</span><span>Product launch</span></div>
-              <h1>My task board</h1>
-              <p>Keep momentum visible and move the work forward.</p>
+              <h1>My board</h1>
+              <p>{taskSummary}</p>
             </div>
             <div className="board-heading__actions">
-              <AvatarStack members={workspace.members} limit={4} />
               <button className={`button button--filter${filterCount ? " is-active" : ""}`} onClick={() => setFiltersOpen((open) => !open)}>
                 <Filter size={15} /> Filter {filterCount ? <span>{filterCount}</span> : null}
               </button>

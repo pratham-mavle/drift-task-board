@@ -31,11 +31,11 @@ test("server-renders the branded application shell", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>Drift — A calmer task board<\/title>/i);
-  assert.match(html, /Preparing your board/);
-  assert.match(html, /Drift workspace/);
-  assert.match(html, /Starting a private guest session/);
-  assert.match(html, /http:\/\/localhost\/og\.png/);
+  assert.match(html, /<title>Drift — Task board<\/title>/i);
+  assert.match(html, /Loading your board/);
+  assert.match(html, />Drift</);
+  assert.match(html, /Signing you in and loading tasks/);
+  assert.match(html, /http:\/\/localhost\/og-v2\.png/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
   assert.match(html, /role="status"/);
 });
@@ -55,7 +55,7 @@ test("ships the Kanban, Supabase, and collaboration capabilities", async () => {
   assert.match(board, /DndContext/);
   assert.match(board, /postgres_changes/);
   assert.match(board, /DEMO_STORAGE_KEY/);
-  assert.match(panels, /Conversation/);
+  assert.match(panels, /Comments/);
   assert.match(panels, /Activity/);
 
   for (const table of ["tasks", "team_members", "task_assignees", "comments", "labels", "task_labels", "activity_logs"]) {
@@ -66,6 +66,6 @@ test("ships the Kanban, Supabase, and collaboration capabilities", async () => {
   assert.match(schema, /grant select on table public\.activity_logs to authenticated/i);
   assert.match(schema, /create trigger tasks_log_activity/i);
 
-  await access(new URL("../public/og.png", import.meta.url));
+  await access(new URL("../public/og-v2.png", import.meta.url));
   await assert.rejects(access(new URL("../app/_sites-preview/SkeletonPreview.tsx", projectRoot)));
 });

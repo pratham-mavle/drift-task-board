@@ -30,6 +30,15 @@ import {
 } from "@/lib/board";
 import { Avatar } from "./TaskCard";
 
+const COLOR_NAMES: Record<string, string> = {
+  "#5B5BD6": "indigo",
+  "#D96C52": "coral",
+  "#2D8C73": "teal",
+  "#B6782A": "amber",
+  "#8A5CB8": "violet",
+  "#3575A8": "blue",
+};
+
 export type TaskFormValues = {
   title: string;
   description: string;
@@ -89,7 +98,7 @@ function TaskEditorFields({
           maxLength={180}
           value={values.title}
           onChange={(event) => onChange({ ...values, title: event.target.value })}
-          placeholder="What needs to happen?"
+          placeholder="Task title"
         />
       </label>
 
@@ -98,7 +107,7 @@ function TaskEditorFields({
         <textarea
           value={values.description}
           onChange={(event) => onChange({ ...values, description: event.target.value })}
-          placeholder="Add useful context, links, or acceptance notes…"
+          placeholder="Add details, links, or notes…"
           rows={4}
         />
       </label>
@@ -165,7 +174,7 @@ function TaskEditorFields({
               );
             })
           ) : (
-            <p className="choice-empty">Add a teammate to make assignments.</p>
+            <p className="choice-empty">Add a team member to assign this task.</p>
           )}
         </div>
       </fieldset>
@@ -197,7 +206,7 @@ function TaskEditorFields({
               </button>
             );
           })}
-          {!labels.length ? <p className="choice-empty">Labels help make a busy board easier to scan.</p> : null}
+          {!labels.length ? <p className="choice-empty">Create a label to group related tasks.</p> : null}
         </div>
       </fieldset>
     </div>
@@ -264,7 +273,7 @@ export function CreateTaskModal({
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!values.title.trim()) {
-      setError("Give the task a clear title.");
+      setError("Enter a task title.");
       return;
     }
     setSubmitting(true);
@@ -272,8 +281,8 @@ export function CreateTaskModal({
     try {
       await onCreate({ ...values, title: values.title.trim() });
       onClose();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "The task could not be created.");
+    } catch {
+      setError("Couldn’t create the task. Check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -284,9 +293,8 @@ export function CreateTaskModal({
       <form className="task-modal" onSubmit={submit}>
         <header className="dialog-header">
           <div>
-            <span className="eyebrow">New work</span>
-            <h2>Create a task</h2>
-            <p>Capture the outcome now. The details can evolve with the work.</p>
+            <h2>New task</h2>
+            <p>Add a title and any details you need.</p>
           </div>
           <button type="button" className="icon-button" onClick={onClose} aria-label="Close create task dialog">
             <X size={18} />
@@ -301,7 +309,7 @@ export function CreateTaskModal({
         />
         {error ? <p className="form-error">{error}</p> : null}
         <footer className="dialog-footer">
-          <span className="keyboard-hint">Tip: keep the title outcome-focused</span>
+          <span />
           <div>
             <button type="button" className="button button--ghost" onClick={onClose}>
               Cancel
@@ -344,6 +352,7 @@ export function TaskDrawer({
   const [comment, setComment] = useState("");
   const [commenting, setCommenting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -358,15 +367,15 @@ export function TaskDrawer({
 
   const save = async () => {
     if (!values.title.trim()) {
-      setError("A task needs a title.");
+      setError("Enter a task title.");
       return;
     }
     setSaving(true);
     setError("");
     try {
       await onSave(task, { ...values, title: values.title.trim() });
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Changes could not be saved.");
+    } catch {
+      setError("Couldn’t save changes. Check your connection and try again.");
     } finally {
       setSaving(false);
     }
@@ -379,8 +388,8 @@ export function TaskDrawer({
     try {
       await onComment(task, comment.trim());
       setComment("");
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "The comment could not be posted.");
+    } catch {
+      setError("Couldn’t post the comment. Check your connection and try again.");
     } finally {
       setCommenting(false);
     }
@@ -392,7 +401,7 @@ export function TaskDrawer({
         <header className="drawer-header">
           <div className="drawer-breadcrumb">
             <span className={`status-dot status-dot--${task.status}`} />
-            Product launch <span>/</span> {STATUS_TITLE[task.status]}
+            My board <span>/</span> {STATUS_TITLE[task.status]}
           </div>
           <button type="button" className="icon-button" onClick={onClose} aria-label="Close task details">
             <X size={18} />
@@ -415,19 +424,27 @@ export function TaskDrawer({
             </button>
             {deleteConfirm ? (
               <div className="delete-confirm">
-                <span>Delete permanently?</span>
+                <span>Delete this task?</span>
                 <button
                   type="button"
                   className="text-button text-button--danger"
+                  disabled={deleting}
                   onClick={async () => {
-                    await onDelete(task);
-                    onClose();
+                    setDeleting(true);
+                    setError("");
+                    try {
+                      await onDelete(task);
+                      onClose();
+                    } catch {
+                      setError("Couldn’t delete the task. Check your connection and try again.");
+                      setDeleting(false);
+                    }
                   }}
                 >
-                  Yes, delete
+                  {deleting ? "Deleting…" : "Delete task"}
                 </button>
                 <button type="button" className="text-button" onClick={() => setDeleteConfirm(false)}>
-                  Keep it
+                  Cancel
                 </button>
               </div>
             ) : (
@@ -441,7 +458,7 @@ export function TaskDrawer({
             <div className="section-heading">
               <div>
                 <span className="section-icon"><MessageCircle size={15} /></span>
-                <h3>Conversation</h3>
+                <h3>Comments</h3>
               </div>
               <span>{taskComments.length}</span>
             </div>
@@ -451,7 +468,7 @@ export function TaskDrawer({
                   <article key={item.id} className="comment-item">
                     <span className="comment-avatar">G</span>
                     <div>
-                      <header><strong>Guest collaborator</strong><time>{formatRelativeTime(item.createdAt)}</time></header>
+                      <header><strong>You</strong><time>{formatRelativeTime(item.createdAt)}</time></header>
                       <p>{item.body}</p>
                     </div>
                   </article>
@@ -459,12 +476,12 @@ export function TaskDrawer({
               ) : (
                 <div className="quiet-empty">
                   <MessageCircle size={18} />
-                  <p>No comments yet. Add context or ask for feedback.</p>
+                  <p>No comments yet.</p>
                 </div>
               )}
             </div>
             <form className="comment-composer" onSubmit={submitComment}>
-              <span className="comment-avatar">{initials("Guest User")}</span>
+              <span className="comment-avatar">{initials("Guest")}</span>
               <label>
                 <span className="sr-only">Write a comment</span>
                 <textarea
@@ -498,7 +515,7 @@ export function TaskDrawer({
               ) : (
                 <div className="activity-item">
                   <span className="activity-item__dot" />
-                  <p>Task created <time>· {formatRelativeTime(task.createdAt)}</time></p>
+                  <p>Created this task <time>· {formatRelativeTime(task.createdAt)}</time></p>
                 </div>
               )}
             </div>
@@ -522,14 +539,18 @@ export function NameColorModal({
   const [name, setName] = useState("");
   const [color, setColor] = useState(palette[0]);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!name.trim()) return;
     setSaving(true);
+    setError("");
     try {
       await onCreate(name.trim(), color);
       onClose();
+    } catch {
+      setError(`Couldn’t create the ${kind}. Check your connection and try again.`);
     } finally {
       setSaving(false);
     }
@@ -540,9 +561,8 @@ export function NameColorModal({
       <form className="mini-modal" onSubmit={submit}>
         <header className="dialog-header">
           <div>
-            <span className="eyebrow">Workspace</span>
             <h2>{kind === "member" ? "Add a team member" : "Create a label"}</h2>
-            <p>{kind === "member" ? "Create a lightweight teammate profile for assignments." : "Give related work a shared visual signal."}</p>
+            <p>{kind === "member" ? "Add someone you can assign tasks to." : "Group related tasks with a name and color."}</p>
           </div>
           <button type="button" className="icon-button" onClick={onClose} aria-label="Close dialog"><X size={18} /></button>
         </header>
@@ -560,7 +580,7 @@ export function NameColorModal({
                 className={`color-swatch${color === swatch ? " is-active" : ""}`}
                 style={{ backgroundColor: swatch }}
                 onClick={() => setColor(swatch)}
-                aria-label={`Use color ${swatch}`}
+                aria-label={`Select ${COLOR_NAMES[swatch] ?? "color"}`}
                 aria-pressed={color === swatch}
               >
                 {color === swatch ? <Check size={15} /> : null}
@@ -568,11 +588,14 @@ export function NameColorModal({
             ))}
           </div>
         </fieldset>
+        {error ? <p className="form-error">{error}</p> : null}
         <footer className="dialog-footer">
           <span />
           <div>
             <button type="button" className="button button--ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="button button--primary" disabled={saving || !name.trim()}>{saving ? "Adding…" : kind === "member" ? "Add member" : "Create label"}</button>
+            <button type="submit" className="button button--primary" disabled={saving || !name.trim()}>
+              {saving ? (kind === "member" ? "Adding…" : "Creating…") : kind === "member" ? "Add member" : "Create label"}
+            </button>
           </div>
         </footer>
       </form>

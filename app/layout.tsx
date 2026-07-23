@@ -19,24 +19,24 @@ export async function generateMetadata(): Promise<Metadata> {
   const protocol = requestHeaders.get("x-forwarded-proto") ?? (host?.includes("localhost") ? "http" : "https");
   const origin = host ? `${protocol}://${host}` : null;
   return {
-    title: "Drift — A calmer task board",
-    description: "A polished Kanban workspace for focused teams, with private guest sessions, comments, activity, labels, assignees, and realtime Supabase sync.",
+    title: "Drift — Task board",
+    description: "A private Kanban board with tasks, comments, labels, assignees, and Supabase sync.",
     applicationName: "Drift",
     icons: {
       icon: "/favicon.svg",
       shortcut: "/favicon.svg",
     },
     openGraph: {
-      title: "Drift — A calmer task board",
-      description: "Move work forward with a focused, collaborative Kanban workspace.",
+      title: "Drift — Task board",
+      description: "A private Kanban board with tasks, comments, labels, and assignees.",
       type: "website",
-      ...(origin ? { url: origin, images: [{ url: `${origin}/og.png`, width: 1536, height: 1024, alt: "Drift task board preview" }] } : {}),
+      ...(origin ? { url: origin, images: [{ url: `${origin}/og-v2.png`, width: 1536, height: 1024, alt: "Drift task board" }] } : {}),
     },
     twitter: {
       card: "summary_large_image",
-      title: "Drift — A calmer task board",
-      description: "Move work forward with a focused, collaborative Kanban workspace.",
-      ...(origin ? { images: [`${origin}/og.png`] } : {}),
+      title: "Drift — Task board",
+      description: "A private Kanban board with tasks, comments, labels, and assignees.",
+      ...(origin ? { images: [`${origin}/og-v2.png`] } : {}),
     },
   };
 }

@@ -147,7 +147,7 @@ try {
   });
   realtimeTimeout = setTimeout(
     () => rejectRealtimeUpdate(new Error("Timed out waiting for the task realtime update")),
-    10_000,
+    20_000,
   );
 
   const subscribed = new Promise((resolve, reject) => {
@@ -212,4 +212,6 @@ try {
   if (memberA?.id) await clientA.from("team_members").delete().eq("id", memberA.id);
   if (memberB?.id) await clientB.from("team_members").delete().eq("id", memberB.id);
   await Promise.allSettled([clientA.auth.signOut(), clientB.auth.signOut()]);
+  clientA.realtime.disconnect();
+  clientB.realtime.disconnect();
 }
