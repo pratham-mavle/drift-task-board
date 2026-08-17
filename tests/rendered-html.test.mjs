@@ -41,9 +41,10 @@ test("server-renders the branded application shell", async () => {
 });
 
 test("ships the Kanban, Supabase, and collaboration capabilities", async () => {
-  const [board, panels, packageJson, schema] = await Promise.all([
+  const [board, panels, taskCard, packageJson, schema] = await Promise.all([
     readFile(new URL("../app/components/BoardApp.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/components/TaskPanels.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/TaskCard.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     readFile(new URL("../supabase/schema.sql", import.meta.url), "utf8"),
   ]);
@@ -54,9 +55,20 @@ test("ships the Kanban, Supabase, and collaboration capabilities", async () => {
   assert.match(board, /signInAnonymously\(\)/);
   assert.match(board, /DndContext/);
   assert.match(board, /postgres_changes/);
+  assert.match(board, /update_task_with_relationships/);
+  assert.match(board, /reorder_tasks/);
+  assert.match(board, /create_task_with_relationships/);
   assert.match(board, /DEMO_STORAGE_KEY/);
+  assert.match(board, /event\.ctrlKey/);
+  assert.match(board, /const dialogOpen/);
   assert.match(panels, /Comments/);
   assert.match(panels, /Activity/);
+  assert.match(panels, /FOCUSABLE_SELECTOR/);
+  assert.match(panels, /dialogStack/);
+  assert.match(panels, /role="alert"/);
+  assert.match(taskCard, /className="task-card__open"/);
+  assert.match(taskCard, /aria-haspopup="dialog"/);
+  assert.doesNotMatch(taskCard, /role="button"/);
 
   for (const table of ["tasks", "team_members", "task_assignees", "comments", "labels", "task_labels", "activity_logs"]) {
     assert.match(schema, new RegExp(`alter table public\\.${table} enable row level security`, "i"));
@@ -65,6 +77,10 @@ test("ships the Kanban, Supabase, and collaboration capabilities", async () => {
   assert.match(schema, /revoke all on table public\.tasks from public, anon/i);
   assert.match(schema, /grant select on table public\.activity_logs to authenticated/i);
   assert.match(schema, /create trigger tasks_log_activity/i);
+  assert.match(schema, /create or replace function public\.update_task_with_relationships/i);
+  assert.match(schema, /create or replace function public\.reorder_tasks/i);
+  assert.match(schema, /create or replace function public\.create_task_with_relationships/i);
+  assert.match(schema, /revoke all on function public\.reorder_tasks/i);
 
   await access(new URL("../public/og-v2.png", import.meta.url));
   await assert.rejects(access(new URL("../app/_sites-preview/SkeletonPreview.tsx", projectRoot)));

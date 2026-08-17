@@ -53,9 +53,16 @@ try {
   const [{ data: createdA, error: taskErrorA }, { data: createdB, error: taskErrorB }] =
     await Promise.all([
       clientA
-        .from("tasks")
-        .insert({ title: `${marker}-A`, status: "todo", priority: "high" })
-        .select("id,user_id,title,status")
+        .rpc("create_task_with_relationships", {
+          p_title: `${marker}-A`,
+          p_description: "Created atomically",
+          p_status: "todo",
+          p_priority: "high",
+          p_due_date: null,
+          p_position: 1000,
+          p_assignee_ids: [],
+          p_label_ids: [],
+        })
         .single(),
       clientB
         .from("tasks")
@@ -106,38 +113,138 @@ try {
   expectNoError(labelErrorA, "Create User A label");
   labelA = createdLabelA;
 
-  for (const [context, operation] of [
-    [
-      "Assign User A member",
-      clientA.from("task_assignees").insert({
-        task_id: taskA.id,
-        team_member_id: memberA.id,
-      }),
-    ],
-    [
-      "Label User A task",
-      clientA.from("task_labels").insert({
-        task_id: taskA.id,
-        label_id: labelA.id,
-      }),
-    ],
-    [
-      "Comment on User A task",
-      clientA.from("comments").insert({
-        task_id: taskA.id,
-        body: "Integration verification comment",
-      }),
-    ],
-  ]) {
-    const { error } = await operation;
-    expectNoError(error, context);
-  }
+  const rejectedCreateTitle = `${marker}-cross-owner-create`;
+  const { error: rejectedCreateError } = await clientA.rpc("create_task_with_relationships", {
+    p_title: rejectedCreateTitle,
+    p_description: "This task must never be committed",
+    p_status: "todo",
+    p_priority: "normal",
+    p_due_date: null,
+    p_position: 2000,
+    p_assignee_ids: [memberB.id],
+    p_label_ids: [labelA.id],
+  });
+  assert.ok(rejectedCreateError, "A cross-owner atomic create must be rejected");
+  const { count: rejectedCreateCount, error: rejectedCreateCountError } = await clientA
+    .from("tasks")
+    .select("*", { count: "exact", head: true })
+    .eq("title", rejectedCreateTitle);
+  expectNoError(rejectedCreateCountError, "Verify rejected create left no task residue");
+  assert.equal(rejectedCreateCount, 0);
+
+  const { data: atomicUpdate, error: atomicUpdateError } = await clientA
+    .rpc("update_task_with_relationships", {
+      p_task_id: taskA.id,
+      p_title: `${marker}-A`,
+      p_description: "Updated atomically with relationships",
+      p_status: "todo",
+      p_priority: "high",
+      p_due_date: null,
+      p_position: 1000,
+      p_assignee_ids: [memberA.id],
+      p_label_ids: [labelA.id],
+    })
+    .single();
+  expectNoError(atomicUpdateError, "Atomically update User A task and relationships");
+  assert.equal(atomicUpdate.id, taskA.id);
+  assert.equal(atomicUpdate.description, "Updated atomically with relationships");
+
+  const { error: commentError } = await clientA.from("comments").insert({
+    task_id: taskA.id,
+    body: "Integration verification comment",
+  });
+  expectNoError(commentError, "Comment on User A task");
 
   const { error: crossOwnerError } = await clientA.from("task_assignees").insert({
     task_id: taskA.id,
     team_member_id: memberB.id,
   });
   assert.ok(crossOwnerError, "A cross-owner assignment must be rejected");
+
+  const { error: crossOwnerRpcError } = await clientA.rpc("update_task_with_relationships", {
+    p_task_id: taskA.id,
+    p_title: "This must roll back",
+    p_description: "Cross-owner relationship attempt",
+    p_status: "done",
+    p_priority: "low",
+    p_due_date: null,
+    p_position: 2000,
+    p_assignee_ids: [memberB.id],
+    p_label_ids: [labelA.id],
+  });
+  assert.ok(crossOwnerRpcError, "A cross-owner atomic update must be rejected");
+
+  const [
+    { data: taskAfterRollback, error: rollbackTaskError },
+    { data: assignmentsAfterRollback, error: rollbackAssignmentError },
+    { data: labelsAfterRollback, error: rollbackLabelError },
+  ] =
+    await Promise.all([
+      clientA.from("tasks").select("title,status,position").eq("id", taskA.id).single(),
+      clientA.from("task_assignees").select("team_member_id").eq("task_id", taskA.id),
+      clientA.from("task_labels").select("label_id").eq("task_id", taskA.id),
+    ]);
+  expectNoError(rollbackTaskError, "Read task after rejected atomic update");
+  expectNoError(rollbackAssignmentError, "Read assignments after rejected atomic update");
+  expectNoError(rollbackLabelError, "Read labels after rejected atomic update");
+  assert.equal(taskAfterRollback.title, `${marker}-A`);
+  assert.equal(taskAfterRollback.status, "todo");
+  assert.equal(Number(taskAfterRollback.position), 1000);
+  assert.deepEqual(assignmentsAfterRollback.map(({ team_member_id }) => team_member_id), [memberA.id]);
+  assert.deepEqual(labelsAfterRollback.map(({ label_id }) => label_id), [labelA.id]);
+
+  const { error: mixedReorderError } = await clientA.rpc("reorder_tasks", {
+    p_updates: [
+      { id: taskA.id, status: "in_review", position: 2000 },
+      { id: taskB.id, status: "done", position: 3000 },
+    ],
+  });
+  assert.ok(mixedReorderError, "A mixed-owner reorder batch must be rejected");
+
+  const { data: taskAfterReorderRollback, error: reorderRollbackReadError } = await clientA
+    .from("tasks")
+    .select("status,position")
+    .eq("id", taskA.id)
+    .single();
+  expectNoError(reorderRollbackReadError, "Read task after rejected reorder batch");
+  assert.equal(taskAfterReorderRollback.status, "todo");
+  assert.equal(Number(taskAfterReorderRollback.position), 1000);
+
+  const { error: clearRelationshipsError } = await clientA.rpc("update_task_with_relationships", {
+    p_task_id: taskA.id,
+    p_title: `${marker}-A`,
+    p_description: "Updated atomically with relationships",
+    p_status: "todo",
+    p_priority: "high",
+    p_due_date: null,
+    p_position: 1000,
+    p_assignee_ids: [],
+    p_label_ids: [],
+  });
+  expectNoError(clearRelationshipsError, "Clear task relationships atomically");
+
+  const [{ count: assignmentCount, error: assignmentCountError }, { count: labelCount, error: labelCountError }] =
+    await Promise.all([
+      clientA.from("task_assignees").select("*", { count: "exact", head: true }).eq("task_id", taskA.id),
+      clientA.from("task_labels").select("*", { count: "exact", head: true }).eq("task_id", taskA.id),
+    ]);
+  expectNoError(assignmentCountError, "Count cleared assignments");
+  expectNoError(labelCountError, "Count cleared labels");
+  assert.equal(assignmentCount, 0);
+  assert.equal(labelCount, 0);
+
+  const { error: restoreRelationshipsError } = await clientA.rpc("update_task_with_relationships", {
+    p_task_id: taskA.id,
+    p_title: `${marker}-A`,
+    p_description: "Updated atomically with relationships",
+    p_status: "todo",
+    p_priority: "high",
+    p_due_date: null,
+    p_position: 1000,
+    p_assignee_ids: [memberA.id],
+    p_label_ids: [labelA.id],
+  });
+  expectNoError(restoreRelationshipsError, "Restore task relationships atomically");
 
   let resolveRealtimeUpdate;
   let rejectRealtimeUpdate;
@@ -172,11 +279,12 @@ try {
   });
   await subscribed;
 
-  const { error: moveError } = await clientA
-    .from("tasks")
-    .update({ status: "in_progress" })
-    .eq("id", taskA.id);
+  const { data: reorderResult, error: moveError } = await clientA.rpc("reorder_tasks", {
+    p_updates: [{ id: taskA.id, status: "in_progress", position: 1000 }],
+  });
   expectNoError(moveError, "Move User A task");
+  assert.equal(reorderResult.length, 1);
+  assert.equal(reorderResult[0].status, "in_progress");
 
   const realtimePayload = await realtimeUpdate;
   clearTimeout(realtimeTimeout);
@@ -201,7 +309,7 @@ try {
   }
 
   console.log(
-    "Supabase integration passed: anonymous auth, RLS isolation, realtime, relationships, and activity.",
+    "Supabase integration passed: anonymous auth, RLS isolation, realtime, atomic task writes, relationships, and activity.",
   );
 } finally {
   if (realtimeTimeout) clearTimeout(realtimeTimeout);

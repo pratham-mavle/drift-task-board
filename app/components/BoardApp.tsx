@@ -21,6 +21,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import Link from "next/link";
 import {
   Check,
   ChevronDown,
@@ -252,7 +253,7 @@ function Sidebar({
 
       <nav className="main-nav" aria-label="Workspace navigation">
         <span className="nav-label">Workspace</span>
-        <button className="nav-item is-active"><LayoutDashboard size={17} /> My board <span>{total}</span></button>
+        <Link className="nav-item is-active" href="/" aria-current="page"><LayoutDashboard size={17} /> My board <span>{total}</span></Link>
       </nav>
 
       <section className="sidebar-team">
@@ -483,18 +484,19 @@ export default function BoardApp() {
     const handleKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
       const typing = target.matches("input, textarea, select, [contenteditable='true']");
-      if ((event.key === "/" || (event.metaKey && event.key.toLowerCase() === "k")) && !typing) {
+      const dialogOpen = Boolean(createStatus || selectedTaskId || miniModal);
+      if (!dialogOpen && (event.key === "/" || ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k")) && !typing) {
         event.preventDefault();
         searchRef.current?.focus();
       }
-      if (event.key.toLowerCase() === "n" && !typing && !createStatus && !selectedTaskId) {
+      if (!dialogOpen && event.key.toLowerCase() === "n" && !typing) {
         event.preventDefault();
         setCreateStatus("todo");
       }
     };
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
-  }, [createStatus, selectedTaskId]);
+  }, [createStatus, miniModal, selectedTaskId]);
 
   const addActivity = useCallback(
     async (taskId: string, action: string, metadata: Record<string, unknown>) => {
@@ -534,22 +536,19 @@ export default function BoardApp() {
     }
     const client = clientRef.current;
     if (!client) throw new Error("Supabase is not connected.");
-    const { data, error } = await client.from("tasks").insert({
-      user_id: userIdRef.current, title: values.title, description: values.description, status: values.status,
-      priority: values.priority, due_date: values.dueDate || null, position,
-    }).select().single();
+    const { data, error } = await client.rpc("create_task_with_relationships", {
+      p_title: values.title,
+      p_description: values.description,
+      p_status: values.status,
+      p_priority: values.priority,
+      p_due_date: values.dueDate || null,
+      p_position: position,
+      p_assignee_ids: values.assigneeIds,
+      p_label_ids: values.labelIds,
+    }).single();
     if (error) throw error;
     const row = data as DbRow;
     const taskId = String(row.id);
-    const joins = [];
-    if (values.assigneeIds.length) joins.push(client.from("task_assignees").insert(values.assigneeIds.map((team_member_id) => ({ task_id: taskId, team_member_id, user_id: userIdRef.current }))));
-    if (values.labelIds.length) joins.push(client.from("task_labels").insert(values.labelIds.map((label_id) => ({ task_id: taskId, label_id, user_id: userIdRef.current }))));
-    const joinResults = await Promise.all(joins);
-    const joinFailure = joinResults.find((result) => result.error);
-    if (joinFailure?.error) {
-      await client.from("tasks").delete().eq("id", taskId);
-      throw joinFailure.error;
-    }
     const task = mapTask(row, values.assigneeIds.map((team_member_id) => ({ task_id: taskId, team_member_id })), values.labelIds.map((label_id) => ({ task_id: taskId, label_id })));
     commitWorkspace({ ...workspaceRef.current, tasks: [...workspaceRef.current.tasks, task] }, false);
     await addActivity(task.id, "created", {});
@@ -563,10 +562,19 @@ export default function BoardApp() {
       notify("No changes to save");
       return;
     }
+    const destinationPosition = task.status === values.status
+      ? task.position
+      : Math.max(
+          0,
+          ...before.tasks
+            .filter((item) => item.id !== task.id && item.status === values.status)
+            .map((item) => item.position),
+        ) + 1000;
     const updated: Task = {
       ...task, title: values.title, description: values.description, status: values.status,
       priority: values.priority, dueDate: values.dueDate || null,
-      assigneeIds: values.assigneeIds, labelIds: values.labelIds, updatedAt: new Date().toISOString(),
+      position: destinationPosition, assigneeIds: values.assigneeIds, labelIds: values.labelIds,
+      updatedAt: new Date().toISOString(),
     };
     const optimistic = { ...before, tasks: before.tasks.map((item) => item.id === task.id ? updated : item) };
     commitWorkspace(optimistic, modeRef.current === "demo");
@@ -583,27 +591,28 @@ export default function BoardApp() {
     const client = clientRef.current;
     if (!client) throw new Error("Supabase is not connected.");
     try {
-      const { error } = await client.from("tasks").update({
-        title: updated.title, description: updated.description, status: updated.status, priority: updated.priority,
-        due_date: updated.dueDate, position: updated.position,
-      }).eq("id", task.id);
+      const { data, error } = await client.rpc("update_task_with_relationships", {
+        p_task_id: task.id,
+        p_title: updated.title,
+        p_description: updated.description,
+        p_status: updated.status,
+        p_priority: updated.priority,
+        p_due_date: updated.dueDate,
+        p_position: updated.position,
+        p_assignee_ids: updated.assigneeIds,
+        p_label_ids: updated.labelIds,
+      }).single();
       if (error) throw error;
-      const removedAssignees = task.assigneeIds.filter((id) => !updated.assigneeIds.includes(id));
-      const addedAssignees = updated.assigneeIds.filter((id) => !task.assigneeIds.includes(id));
-      const removedLabels = task.labelIds.filter((id) => !updated.labelIds.includes(id));
-      const addedLabels = updated.labelIds.filter((id) => !task.labelIds.includes(id));
-      const relationshipChanges = [];
-      if (removedAssignees.length) relationshipChanges.push(client.from("task_assignees").delete().eq("task_id", task.id).in("team_member_id", removedAssignees));
-      if (removedLabels.length) relationshipChanges.push(client.from("task_labels").delete().eq("task_id", task.id).in("label_id", removedLabels));
-      const deletionResults = await Promise.all(relationshipChanges);
-      const deletionFailure = deletionResults.find((result) => result.error);
-      if (deletionFailure?.error) throw deletionFailure.error;
-      const inserts = [];
-      if (addedAssignees.length) inserts.push(client.from("task_assignees").insert(addedAssignees.map((team_member_id) => ({ task_id: task.id, team_member_id, user_id: userIdRef.current }))));
-      if (addedLabels.length) inserts.push(client.from("task_labels").insert(addedLabels.map((label_id) => ({ task_id: task.id, label_id, user_id: userIdRef.current }))));
-      const insertResults = await Promise.all(inserts);
-      const failed = insertResults.find((result) => result.error);
-      if (failed?.error) throw failed.error;
+      const row = data as DbRow;
+      const persisted = mapTask(
+        row,
+        updated.assigneeIds.map((team_member_id) => ({ task_id: task.id, team_member_id })),
+        updated.labelIds.map((label_id) => ({ task_id: task.id, label_id })),
+      );
+      commitWorkspace({
+        ...workspaceRef.current,
+        tasks: workspaceRef.current.tasks.map((item) => item.id === task.id ? persisted : item),
+      }, false);
       await addActivity(task.id, action, metadata);
       notify("Changes saved");
     } catch (caught) {
@@ -705,9 +714,16 @@ export default function BoardApp() {
         const old = before.tasks.find((item) => item.id === task.id);
         return !old || old.status !== task.status || old.position !== task.position;
       });
-      const results = await Promise.all(changed.map((task) => client.from("tasks").update({ status: task.status, position: task.position }).eq("id", task.id)));
-      const failed = results.find((result) => result.error);
-      if (failed?.error) throw failed.error;
+      if (changed.length) {
+        const { error } = await client.rpc("reorder_tasks", {
+          p_updates: changed.map((task) => ({
+            id: task.id,
+            status: task.status,
+            position: task.position,
+          })),
+        });
+        if (error) throw error;
+      }
       if (moved.status !== previousStatus) {
         await addActivity(moved.id, "moved", { from: previousStatus, to: moved.status });
         notify(`Moved to ${STATUS_TITLE[moved.status]}`);
@@ -816,7 +832,7 @@ export default function BoardApp() {
               placeholder="Search tasks…"
               aria-label="Search tasks"
             />
-            {query ? <button onClick={() => setQuery("")} aria-label="Clear search"><X size={14} /></button> : <kbd>⌘ K</kbd>}
+            {query ? <button onClick={() => setQuery("")} aria-label="Clear search"><X size={14} /></button> : <kbd>⌘/Ctrl K</kbd>}
           </div>
           <div className="topbar-actions">
             <div className={`sync-status sync-status--${syncState}`} title="Save status">

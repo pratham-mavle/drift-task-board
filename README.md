@@ -8,7 +8,7 @@ Drift is a polished, responsive Kanban workspace built with React, TypeScript, S
 ## Highlights
 
 - Four persistent workflow columns: To Do, In Progress, In Review, and Done
-- Pointer, touch, and keyboard-friendly drag and drop with optimistic updates
+- Pointer, touch, and keyboard-friendly drag and drop with optimistic, atomic persistence
 - Automatic Supabase anonymous sign-in; no email or password required
 - Strict Row Level Security so every guest can access only their own records
 - Task creation, editing, deletion, priority, descriptions, due dates, and ordering
@@ -78,7 +78,7 @@ npm run test:supabase
 
 `npm test` creates a production build, renders the worker response, verifies branded metadata and loading state, and checks the presence of every RLS-protected table and core collaboration capability.
 
-`npm run test:supabase` uses two independent anonymous sessions against the configured project to verify private task visibility, cross-owner relationship rejection, realtime task updates, comments, assignments, labels, status changes, and trigger-generated activity. It requires `.env.local` and removes the product data it creates after the run.
+`npm run test:supabase` uses two independent anonymous sessions against the configured project to verify private task visibility, cross-owner relationship rejection and rollback, atomic task and reorder RPCs, realtime updates, comments, assignments, labels, status changes, and trigger-generated activity. It requires `.env.local` and removes the product data it creates after the run.
 
 ## Database and security
 
@@ -94,7 +94,7 @@ The full executable schema is in [`supabase/schema.sql`](supabase/schema.sql). I
 
 Every owned and relationship table carries `user_id`. Composite foreign keys and validation triggers prevent cross-owner task/member/label relationships even outside the UI. RLS policies compare `user_id` with `auth.uid()`. Unauthenticated `anon` table privileges are revoked; a signed-in anonymous Supabase user receives the `authenticated` database role and only its matching policies.
 
-Activity is append-only for browser clients. Database triggers authoritatively record task creation, edits, status moves, assignments, labels, and comments. The client receives only `SELECT` access to activity history.
+Activity is append-only for browser clients. Database triggers authoritatively record task creation, edits, status moves, assignments, labels, and comments. Transactional RPCs keep task creation, multi-card reorders, and task/relationship edits all-or-nothing, while still enforcing RLS. The client receives only `SELECT` access to activity history.
 
 Only the public anon key belongs in the frontend. Never add a Supabase service-role key to `.env.local`, hosting configuration, source code, or Git history.
 
@@ -123,7 +123,7 @@ Build with `npm run build`, then deploy the generated Cloudflare-compatible outp
 ## Tradeoffs and next steps
 
 - Team members are lightweight profiles owned by one guest workspace, not separate invited auth identities. A next version would add durable organizations and invitations.
-- Drag operations update the affected card positions optimistically and then persist them. At much larger scale, fractional ranking or a dedicated reorder RPC would reduce write volume.
+- Drag operations update affected card positions optimistically, then persist the full change atomically. At much larger scale, fractional ranking would reduce write volume further.
 - Comments are intentionally plain text. Mentions, attachments, rich text, and notification delivery are natural extensions.
 - The first version has one board per guest. A `boards` table and workspace membership model would support multiple projects.
 - Automated checks cover compilation, linting, server rendering, the schema contract, and two-session live RLS behavior. Full browser-driven drag, touch, and focus-trap testing would be the next QA layer.

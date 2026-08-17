@@ -30,6 +30,24 @@ import {
 } from "@/lib/board";
 import { Avatar } from "./TaskCard";
 
+const FOCUSABLE_SELECTOR = [
+  "button:not([disabled])",
+  "[href]",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "[contenteditable='true']",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
+
+const dialogStack: HTMLElement[] = [];
+
+function getFocusableElements(dialog: HTMLElement) {
+  return Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+    (element) => element.getAttribute("aria-hidden") !== "true" && element.getClientRects().length > 0,
+  );
+}
+
 const COLOR_NAMES: Record<string, string> = {
   "#5B5BD6": "indigo",
   "#D96C52": "coral",
@@ -224,25 +242,79 @@ function DialogShell({
   className?: string;
   label: string;
 }) {
+  const dialogRef = useRef<HTMLElement>(null);
+  const onCloseRef = useRef(onClose);
+  const [opener] = useState<HTMLElement | null>(() =>
+    typeof document !== "undefined" && document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null,
+  );
+
   useEffect(() => {
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handleKey);
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    dialogStack.push(dialog);
     document.body.classList.add("has-dialog");
+
+    if (!(document.activeElement instanceof HTMLElement) || !dialog.contains(document.activeElement)) {
+      (getFocusableElements(dialog)[0] ?? dialog).focus();
+    }
+
+    const handleKey = (event: KeyboardEvent) => {
+      if (dialogStack.at(-1) !== dialog) return;
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const focusable = getFocusableElements(dialog);
+      if (!focusable.length) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+
+      if (event.shiftKey && (active === first || active === dialog || !dialog.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || active === dialog || !dialog.contains(active))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKey);
     return () => {
       document.removeEventListener("keydown", handleKey);
-      document.body.classList.remove("has-dialog");
+      const stackIndex = dialogStack.lastIndexOf(dialog);
+      if (stackIndex >= 0) dialogStack.splice(stackIndex, 1);
+      document.body.classList.toggle("has-dialog", dialogStack.length > 0);
+      if (opener?.isConnected) opener.focus();
     };
-  }, [onClose]);
+  }, [opener]);
 
   return (
     <div className={`dialog-backdrop ${className}`} role="presentation" onMouseDown={onClose}>
       <section
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={label}
         className="dialog-surface"
+        tabIndex={-1}
         onMouseDown={(event) => event.stopPropagation()}
       >
         {children}
@@ -307,7 +379,7 @@ export function CreateTaskModal({
           labels={labels}
           onCreateLabel={onCreateLabel}
         />
-        {error ? <p className="form-error">{error}</p> : null}
+        {error ? <p className="form-error" role="alert" aria-live="assertive">{error}</p> : null}
         <footer className="dialog-footer">
           <span />
           <div>
@@ -416,7 +488,7 @@ export function TaskDrawer({
             labels={labels}
             onCreateLabel={onCreateLabel}
           />
-          {error ? <p className="form-error">{error}</p> : null}
+          {error ? <p className="form-error" role="alert" aria-live="assertive">{error}</p> : null}
 
           <div className="drawer-actions">
             <button type="button" className="button button--primary" onClick={save} disabled={saving}>
@@ -588,7 +660,7 @@ export function NameColorModal({
             ))}
           </div>
         </fieldset>
-        {error ? <p className="form-error">{error}</p> : null}
+        {error ? <p className="form-error" role="alert" aria-live="assertive">{error}</p> : null}
         <footer className="dialog-footer">
           <span />
           <div>

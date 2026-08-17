@@ -300,7 +300,7 @@ def style_document(doc: Document):
     section.bottom_margin = Inches(1)
     section.left_margin = Inches(1)
     section.right_margin = Inches(1)
-    set_header_footer(section, "Project delivery report", "Pratham Mavle  ·  22 July 2026")
+    set_header_footer(section, "Project delivery report", "Pratham Mavle  ·  17 August 2026")
 
     normal = doc.styles["Normal"]
     normal.font.name = "Calibri"
@@ -370,7 +370,7 @@ def add_cover(doc: Document):
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.space_after = Pt(20)
-    run = p.add_run("React + TypeScript + Supabase  |  Guest auth + RLS  |  July 2026")
+    run = p.add_run("React + TypeScript + Supabase  |  Guest auth + RLS  |  August 2026")
     set_run_font(run, size=9.5, color=MUTED, italic=True)
 
     image_path = PROJECT_ROOT / "public" / "og.png"
@@ -389,7 +389,7 @@ def add_cover(doc: Document):
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.space_after = Pt(0)
-    run = p.add_run("22 July 2026")
+    run = p.add_run("17 August 2026")
     set_run_font(run, size=9, color=MUTED)
     doc.add_page_break()
 
@@ -446,7 +446,7 @@ def add_fact_table(doc: Document):
 
 def add_feature_table(doc: Document):
     features = [
-        ("Kanban workflow", "Four fixed columns, cross-column drag, same-column ordering, keyboard/touch sensors, optimistic rollback", "Built"),
+        ("Kanban workflow", "Four fixed columns, cross-column drag, same-column ordering, keyboard/touch sensors, atomic persistence", "Built"),
         ("Task management", "Create, edit, delete, descriptions, priority, due dates, status, ordering", "Built"),
         ("Guest accounts", "Automatic Supabase anonymous sign-in with persisted browser session", "Built"),
         ("Team + assignees", "User-owned lightweight member profiles and many-to-many task assignments", "Advanced"),
@@ -511,7 +511,7 @@ def add_main_content(doc: Document):
     architecture = [
         "Guest identity. Supabase Auth restores the browser session or calls signInAnonymously() once on first launch.",
         "Protected data. The React client reads tasks and collaboration records through the public anon key; RLS evaluates auth.uid() for every request.",
-        "Optimistic interaction. Drag, edit, create, comment, and delete operations update the interface immediately, persist to Supabase, and roll back visibly on failure.",
+        "Optimistic interaction. Drag, edit, and create operations update the interface immediately, persist through transactional Supabase RPCs, and roll back visibly on failure.",
         "Realtime refresh. Postgres Changes refresh the owned workspace after task, comment, label, assignment, or activity events.",
     ]
     for item in architecture:
@@ -537,7 +537,7 @@ def add_main_content(doc: Document):
         "Drag and drop uses pointer activation distance, delayed touch activation, keyboard coordinates, a lifted overlay, destination highlighting, persistent position values, and rollback messaging.",
         "Search matches task title and description. Priority, assignee, and label filters combine with search, preserve the four-column spatial model, and report the visible result count.",
         "Due dates are overdue only for incomplete tasks before today; dates within two days are due soon; completed dates are visually subdued.",
-        "Keyboard shortcuts focus search with slash or Command-K and open task creation with N when focus is not inside a form control.",
+        "Keyboard shortcuts focus search with slash or Command/Ctrl-K and open task creation with N. Global shortcuts pause while a dialog is open.",
     ):
         add_list_item(doc, text, 77)
 
@@ -557,6 +557,7 @@ def add_main_content(doc: Document):
         "Anonymous Supabase users receive the authenticated database role after sign-in; clients without a session keep the anon role and have no table privileges.",
         "Owned rows store user_id with a default of auth.uid(); policies require the stored value to equal the current session for SELECT, INSERT, UPDATE, and DELETE.",
         "Join tables store user_id and use composite foreign keys, so tasks cannot be linked to a member or label from another guest workspace.",
+        "SECURITY INVOKER RPCs make task creation, task/relationship edits, and multi-card reorders all-or-nothing while preserving grants and RLS as the authorization boundary.",
         "Activity history is append-only to browser clients. SECURITY DEFINER triggers generate authoritative entries for creation, updates, moves, assignments, labels, and comments.",
         "Realtime publication is registered idempotently. RLS SELECT policies remain the subscription boundary.",
         "Deleting an Auth user cascades through all owned product data; deleting a task cascades through its assignments, labels, comments, and history.",
@@ -629,9 +630,10 @@ def add_main_content(doc: Document):
         "TypeScript compilation completed with no errors.",
         "ESLint completed with no errors or warnings.",
         "Production Vinext/Vite build completed successfully.",
+        "Production-only and full npm security audits both reported zero vulnerabilities.",
         "Automated worker-rendering and security-contract tests passed (2 of 2).",
-        "The complete migration was applied successfully to the hosted Supabase project with all seven tables, triggers, grants, RLS policies, and Realtime publication entries.",
-        "A live two-session integration test passed anonymous sign-in, owner defaults, User A/User B isolation, cross-owner rejection, realtime task updates, comments, labels, assignments, status changes, activity logs, and cleanup.",
+        "The complete migrations were applied successfully to the hosted Supabase project with all seven tables, transactional RPCs, triggers, grants, RLS policies, and Realtime publication entries.",
+        "A live two-session integration test passed anonymous sign-in, owner defaults, User A/User B isolation, cross-owner rollback, atomic creation/edit/reorder, relationship clearing, realtime task updates, activity logs, and cleanup.",
         "The Supabase-connected public Sites deployment returned HTTP 200 with the expected Drift metadata and application shell.",
         "Public GitHub repository contains source, setup guidance, environment example, and full schema; no secret environment file or service-role key is committed.",
     ]
@@ -642,8 +644,8 @@ def add_main_content(doc: Document):
     tradeoffs = [
         "Lightweight team profiles, not invited identities. This keeps anonymous onboarding simple. A multi-user version would add organizations, invitations, membership roles, and per-board permissions.",
         "One board per guest. A boards table plus board_id foreign keys would support multiple projects, templates, and archived boards.",
-        "Client-side direct data access. It is appropriate because RLS is the security boundary. A server API or RPC becomes useful for complex atomic workflows, notifications, integrations, and rate limiting.",
-        "Reordering rewrites affected positions. Fractional ranking or a database reorder RPC would reduce writes on very large columns.",
+        "Client-side direct data access is appropriate because RLS remains the security boundary. Narrow SECURITY INVOKER RPCs handle the multi-row workflows; a server API would still help with notifications, external integrations, and rate limiting.",
+        "Reordering atomically rewrites affected integer positions. Fractional ranking would reduce writes on very large columns.",
         "Plain-text comments. Mentions, rich text, attachments, notification delivery, and threaded replies are natural extensions.",
         "Automated QA covers compilation, linting, production rendering, schema behavior, and two independent live anonymous sessions. The next layer would drive drag, touch, focus trapping, and realtime reconnection in full browser tests.",
     ]
@@ -666,7 +668,7 @@ def add_sql_appendix(doc: Document):
     p = doc.add_paragraph()
     p.paragraph_format.space_before = Pt(0)
     p.paragraph_format.space_after = Pt(3)
-    run = p.add_run("Appendix A — Full Supabase database schema")
+    run = p.add_run("Appendix A - Full Supabase database schema")
     set_run_font(run, size=16, color=BLUE, bold=True)
     p = doc.add_paragraph()
     p.paragraph_format.space_after = Pt(7)
@@ -689,7 +691,7 @@ def build(output_path: Path):
     doc = Document()
     style_document(doc)
     props = doc.core_properties
-    props.title = "Drift Kanban Task Manager — Project Delivery Report"
+    props.title = "Drift Kanban Task Manager - Project Delivery Report"
     props.subject = "Solution overview, setup, security model, features, tradeoffs, and full Supabase schema"
     props.author = "Pratham Mavle"
     props.keywords = "Kanban, React, TypeScript, Supabase, anonymous auth, RLS"

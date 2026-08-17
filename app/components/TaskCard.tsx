@@ -10,7 +10,7 @@ import {
   GripVertical,
   MessageCircle,
 } from "lucide-react";
-import type { CSSProperties, MouseEvent } from "react";
+import type { CSSProperties } from "react";
 import {
   dueState,
   formatDueDate,
@@ -83,23 +83,19 @@ export function TaskCard({ task, members, labels, commentCount, onOpen, overlay 
         opacity: sortable.isDragging ? 0.28 : 1,
       };
 
-  const handleClick = (event: MouseEvent<HTMLElement>) => {
-    if ((event.target as HTMLElement).closest("[data-drag-handle]")) return;
-    onOpen(task.id);
-  };
-
   return (
     <article
       ref={overlay ? undefined : sortable.setNodeRef}
       style={style}
       className={`task-card${overlay ? " task-card--overlay" : ""}`}
-      onClick={handleClick}
-      tabIndex={0}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") onOpen(task.id);
-      }}
-      aria-label={`${task.title}, ${task.priority} priority`}
     >
+      <button
+        type="button"
+        className="task-card__open"
+        onClick={() => onOpen(task.id)}
+        aria-label={`Open ${task.title}, ${task.priority} priority`}
+        aria-haspopup="dialog"
+      />
       <div className="task-card__topline">
         <div className="task-card__labels">
           {taskLabels.slice(0, 2).map((label) => (
@@ -121,7 +117,6 @@ export function TaskCard({ task, members, labels, commentCount, onOpen, overlay 
           {...sortable.listeners}
           data-drag-handle
           aria-label={`Drag ${task.title}`}
-          onClick={(event) => event.stopPropagation()}
         >
           <GripVertical size={16} />
         </button>
